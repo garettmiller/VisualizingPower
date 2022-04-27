@@ -90,17 +90,18 @@ class Sipri:
         skip_columns = [34, 35]
         return Sheet(file_location, 'Regional totals', 'Region', skip_rows, skip_columns)
 
-    def budget_line_chart(self, country_names, tick_year_list, last_year=2021, label_list=[]):
+    def budget_line_chart(self, country_names, title, tick_year_list, last_year=2021, label_list=[]):
         selected_df = self.__select_df(self.constant_USD, country_names, tick_year_list, last_year)
         if label_list:
             selected_df.insert(3, "Labels", label_list, True)
 
         base = alt.Chart(selected_df).encode(
             alt.X('Year:O', axis=alt.Axis(values=tick_year_list + [last_year])),
-            alt.Y('Budget:Q'),
+            alt.Y('Budget:Q', title='Budget (Millions of Dollars)'),
         ).properties(
             width=500,
-            height=500
+            height=500,
+            title=title
         )
         lines = base.mark_line().encode(
             alt.Color('Country:N')
@@ -120,24 +121,35 @@ class Sipri:
 
             chart = chart + labels
 
-        return chart
+        return chart, selected_df
 
     def __select_df(self, sheet, country_names, tick_year_list, last_year=2021):
         full_year_list = list(range(tick_year_list[0], last_year))
         return sheet.df.loc[sheet.df['Year'].isin(full_year_list) & sheet.df[sheet.location_type].isin(country_names)]
 
-    def spending_bar_chart(self, country_names, tick_year_list, last_year=2021):
+    def get_labels_from_dict(self, label_dict, year_list):
+        labels = []
+        for year in year_list:
+            try:
+                labels.append(label_dict[year])
+            except KeyError:
+                labels.append('')
+
+        return labels
+
+    def spending_bar_chart(self, country_names, title, tick_year_list, last_year=2021):
         selected_df = self.__select_df(self.constant_USD, country_names, tick_year_list, last_year)
 
         chart = alt.Chart(selected_df).mark_bar().encode(
             alt.X('Country:N'),
-            alt.Y('sum(Budget):Q')
+            alt.Y('sum(Budget):Q', title='Spending (Millions of Dollars)')
         ).properties(
             width=250,
-            height=500
+            height=500,
+            title=title
         )
 
-        return chart
+        return chart, selected_df.groupby(['Country']).sum()
 
     def regional_budget_line_chart(self, region_names, tick_year_list):
         selected_df = self.__merge_USA_into_regional(region_names, tick_year_list)
@@ -164,7 +176,7 @@ class Sipri:
             height=500
         )
 
-        return chart
+        return chart, selected_df.groupby(['Region']).sum()
 
     def __merge_USA_into_regional(self, region_names, tick_year_list):
         region_df = self.__select_df(self.regional_totals, region_names, tick_year_list)
